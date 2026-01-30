@@ -2,7 +2,7 @@
 
 import logging
 from typing import List, Dict, Any, Optional
-from pinecone import Pinecone, ServerlessSpec
+from pinecone import Pinecone
 from pinecone.exceptions import PineconeException
 
 logger = logging.getLogger(__name__)

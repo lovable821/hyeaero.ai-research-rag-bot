@@ -6,11 +6,11 @@ Handles incremental updates with no duplicates or missing data.
 import logging
 from typing import Dict, List, Any, Optional, Set
 
-from ..database.postgres_client import PostgresClient
-from ..vector_store.pinecone_client import PineconeClient
-from .embedding_service import EmbeddingService
-from .chunking_service import ChunkingService
-from .entity_extractors import EXTRACTORS, EntityExtractor
+from database.postgres_client import PostgresClient
+from vector_store.pinecone_client import PineconeClient
+from rag.embedding_service import EmbeddingService
+from rag.chunking_service import ChunkingService
+from rag.entity_extractors import EXTRACTORS, EntityExtractor
 
 logger = logging.getLogger(__name__)
 
@@ -159,9 +159,21 @@ class RAGPipeline:
                     stats['skipped'] += 1
                     continue
                 
+                # Skip extremely large texts to avoid memory issues
+                MAX_TEXT_LENGTH = 1_000_000  # 1MB of text
+                if len(text) > MAX_TEXT_LENGTH:
+                    logger.warning(f"Text too large for {entity_type} {entity_id} ({len(text)} chars), skipping")
+                    stats['skipped'] += 1
+                    continue
+                
                 # Chunk text if needed
                 base_metadata = extractor.get_metadata(record)
-                chunks = self.chunking_service.chunk_text(text, base_metadata, chunk_id_prefix=f"{entity_type}_{entity_id}")
+                try:
+                    chunks = self.chunking_service.chunk_text(text, base_metadata, chunk_id_prefix=f"{entity_type}_{entity_id}")
+                except MemoryError:
+                    logger.warning(f"Memory error chunking {entity_type} {entity_id} (text length: {len(text)}), skipping")
+                    stats['skipped'] += 1
+                    continue
                 
                 if not chunks:
                     stats['skipped'] += 1
@@ -181,10 +193,16 @@ class RAGPipeline:
                     # Create unique vector ID
                     vector_id = f"{entity_type}_{entity_id}_chunk_{chunk['chunk_index']}"
                     
+                    # Filter out None/null values from metadata (Pinecone doesn't accept null)
+                    clean_metadata = {
+                        k: v for k, v in chunk['metadata'].items() 
+                        if v is not None and v != '' and not (isinstance(v, float) and (v != v or v == float('inf') or v == float('-inf')))
+                    }
+                    
                     vectors_to_upsert.append({
                         'id': vector_id,
                         'values': embedding,
-                        'metadata': chunk['metadata']
+                        'metadata': clean_metadata
                     })
                 
                 # Track metadata for database

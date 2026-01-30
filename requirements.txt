@@ -1,7 +1,7 @@
 # HyeAero Backend - RAG Pipeline Dependencies
 
 # Vector Database
-pinecone-client>=3.0.0
+pinecone>=3.0.0
 
 # Embeddings
 openai>=1.0.0
