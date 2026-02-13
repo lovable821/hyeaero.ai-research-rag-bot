@@ -70,11 +70,15 @@ app = FastAPI(
     version="1.0.0",
 )
 
-# Allow frontend from localhost and from this server's IP so other PCs can use the app
+# CORS: set CORS_ORIGINS on Render to your frontend URL (e.g. https://your-app.onrender.com)
 _default_cors = "http://localhost:3000,http://127.0.0.1:3000,http://88.99.198.243:3000,http://88.99.198.243"
+_cors_raw = os.getenv("CORS_ORIGINS", _default_cors).strip().split(",")
+_allow_origins = [o.strip() for o in _cors_raw if o.strip()]
+if not _allow_origins:
+    _allow_origins = _default_cors.strip().split(",")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=os.getenv("CORS_ORIGINS", _default_cors).strip().split(","),
+    allow_origins=_allow_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
